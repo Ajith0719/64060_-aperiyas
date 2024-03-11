@@ -1,0 +1,205 @@
+---
+title: "FML_NAIVE BAYES CLASSIFIER ASSIGNMENT"
+author: "AJITH RAJ PERIYASAMY"
+date: "2024-03-10"
+output: html_document
+---
+```{r}
+#SETTING UP WORKING DIRECTORY:
+setwd("/Users/ajithrajperiyasamy/Desktop/FILES/KSU FILES/ASSIGNMENTS/FML/NAIVE-BASED_10th MARCH")
+```
+# Summary
+
+Pivot tables were utilized to analyze the correlations among "Online," "CC," and "Loan" in the training data. Naive Bayes modeling was employed to estimate the probability of loan approval based on possession of a credit card and online banking behavior, while crucial conditional probabilities were computed. The accuracy of the findings was assessed through comparison.
+
+
+## PROBLEM STATEMENT
+
+The file UniversalBank.csv contains data on 5000 customers of Universal Bank. The data include customer demographic information (age, income, etc.), the customer’s relationship with the bank (mortgage, securities account, etc.), and the customer response to the last personal loan campaign (Personal Loan). Among these 5000 customers, only 480 (= 9.6%) accepted the personal loan that was offered to them in the earlier campaign. In this exercise, we focus on two predictors: Online (whether or not the customer is an active user of online banking services) and Credit Card (abbreviated CC below) (does the customer hold a credit card issued by the bank), and the outcome Personal Loan (abbreviated Loan below). Partition the data into training (60%) and validation (40%) sets. 
+
+***
+
+### First, load the required libraries for the task.
+
+```{r}
+#LOADING LIBRARIES:
+library(lessR)
+library(caTools)
+library(reshape2)
+library(melt)
+library(reshape)
+library(data.table)
+library(Amelia)
+library(dplyr)
+library(readr)
+library(e1071)
+library(caret)
+```
+
+
+### Reading the dataset using read.csv.
+
+```{r}
+# READING THE DATASET:
+data_set <- read.csv("/Users/ajithrajperiyasamy/Desktop/FILES/KSU FILES/ASSIGNMENTS/FML/NAIVE-BASED_10th MARCH/UniversalBank.csv")
+head(data_set,3)
+```
+
+```{r}
+# Changing col name and assigning new data frame
+colnames(data_set)[10] ="PersonalLoan"
+bank<- data_set[c(10,13,14)]
+```
+```{r}
+#Plotting frequency tables with proportions, and setting plotting parameters
+data_1 <- t(prop.table(table(bank$Online)))  
+data_2 <- t(prop.table(table(bank$CreditCard))) 
+data_3 <- t(prop.table(table(bank$PersonalLoan))) 
+par(mar = c(1, 1, 1, 1))
+```
+```{r}
+#Creating bar chart to visualize the value for credit card, loan and online.
+barplot(data_1, ylab = "Percent", xlab = "Online", main = "Precentage break of Online 0 & 1") 
+barplot(data_2, ylab = "Percent", xlab = "CreditCard", main = "Precentage break of Credi Card 0 & 1") 
+barplot(data_3, ylab = "Percent", xlab = "PersonalLoan", main = "Precentage break of Personal Loan 0 & 1") 
+```
+```{r}
+# Normalizing the variable
+bank$PersonalLoan <- as.factor(bank$PersonalLoan)
+bank$Online <- as.factor(bank$Online)
+bank$CreditCard <- as.factor(bank$CreditCard)
+```
+```{r}
+#dividing data for testing and validation
+set.seed(19)
+traindata <- sample(row.names(bank), 0.6*dim(data_set)[1])  
+validdata <- setdiff(row.names(bank), traindata) 
+train.df <- bank[traindata, ]
+valid.df <- bank[validdata, ]
+```
+
+A. Creating a pivot table using training data set and conveying the count.
+
+B. The probability of accepting the loan is very less as the value calculated probability is 0.03
+
+C. Creating two pivot table for the training data
+
+```{r}
+#Melting the data set to long format and summarizing statistics
+
+train.m = melt(train.df,id=c("CreditCard","PersonalLoan"),variable= "Online")
+train.d = dcast(train.m,CreditCard+PersonalLoan~Online)
+train.d
+head(train.m,3)
+
+#Count taken from variables train.m and train.d
+(84/3000) #Chance of taking the loan is very less at .028 probability
+
+tdf<-train.df %>%
+  group_by(CreditCard,PersonalLoan)%>%
+  summarise(count = n())
+tdf
+```
+
+```{r}
+#The provided code calculates the probability of loan acceptance given both "Credit Card" and "Personal Loan" are 1 (`prloanaccept`), and it counts occurrences of various conditions related to "PersonalLoan," "Online," and "CreditCard" in the `train.df` data frame.
+loanaccept <- filter(tdf,(CreditCard==1 & PersonalLoan==1))
+prloanaccept<- loanaccept$count/sum(tdf$count)
+prloanaccept
+
+sum(train.df$PersonalLoan == 1 & train.df$Online == 1)
+sum(train.df$PersonalLoan == 1 & train.df$Online == 0)
+
+sum(train.df$PersonalLoan == 0 & train.df$Online == 1)
+sum(train.df$PersonalLoan == 0 & train.df$Online == 0)
+sum(train.df$PersonalLoan == 1 & train.df$CreditCard == 1)
+sum(train.df$PersonalLoan == 1 & train.df$CreditCard == 0)
+
+sum(train.df$PersonalLoan == 0 & train.df$CreditCard == 1)
+sum(train.df$PersonalLoan == 0 & train.df$CreditCard == 0)
+```
+
+```{r}
+#This code calculates the count of occurrences for each unique value in the "CreditCard" column in the `train.df` data frame and stores the results in a new data frame named `ccf`. The resulting data frame, `ccf`, contains two columns: "CreditCard" (unique values in the original "CreditCard" column) and "count" (the corresponding count of occurrences for each unique value).
+ccf <-train.df %>%
+  group_by(CreditCard)%>%
+  summarise(count = n())
+ccf
+
+#This code creates a summary data frame `plf` with counts for each unique value in the "PersonalLoan" column of the `train.df` dataset.
+plf <-train.df %>%
+  group_by(PersonalLoan)%>%
+  summarise(count = n())
+plf
+```
+
+```{r}
+#These lines of code generate contingency tables to count occurrences of unique combinations or values in specified columns of the `train.df` dataset.
+table(train.df[,c(3,1)])
+table(train.df[,c(2,1)])
+table(train.df[,c(1)])
+```
+D. Computing the conditional probability
+```{r}
+#The code calculates the proportions of specific conditions within the `train.df` dataset, focusing on different combinations of "CreditCard," "Online," and "PersonalLoan" status.
+
+a1 <-count(filter(train.df,(CreditCard==1 & PersonalLoan==1)))/count(filter(train.df,PersonalLoan==1))
+
+b1 <-count(filter(train.df,(Online==1 & PersonalLoan==1)))/count(filter(train.df,(PersonalLoan==1)))
+
+c1<-count(filter(train.df,(PersonalLoan==1)))/count(filter(train.df))
+
+d1<-count(filter(train.df,(CreditCard==1 & PersonalLoan==0)))/count(filter(train.df, PersonalLoan ==0))
+
+e1 <-count(filter(train.df,(Online==1 & PersonalLoan==0)))/count(filter(train.df, PersonalLoan ==0))
+
+f1 <-count(filter(train.df,(PersonalLoan==0)))/count(filter(train.df))
+
+a1
+b1
+c1
+d1
+e1
+f1
+```
+E.The probability of naive Bayes (if loan cc and online are = 1)
+```{r}
+nb<-(a1*b1*c1)/((a1*b1*c1)+(d1*e1*f1))
+nb 
+```
+F. The Naive Bayes and Probability gives the same conclusion but the value is more accurate in Naive Bayes as the  Probability value is of 0.10 when compared to 0.028
+
+
+G. The values needed to predict Naive Bayes are Personal Loan, Credit Card and Online, compared to probability of  E (0.106) The G  Naive Bayes is (0.062), G's probability is much lower.
+```{r}
+#Using naive bayes function for personal loan with features from col 1 to 3
+nbt = train.df[,c(1:3)]
+nbv = valid.df[,c(1:3)]
+model <- naiveBayes(PersonalLoan~.,data=nbt)
+model
+
+p_cc1_given_loan1 <- 0.2896552
+p_online1_given_loan1 <- 0.6206897
+p_loan1 <- 0.09666667
+
+p_naive_bayes <- (p_cc1_given_loan1 * p_online1_given_loan1 * p_loan1) /
+                 (p_cc1_given_loan1 * p_online1_given_loan1 * p_loan1 +
+                  0.4099631 * 0.7092251 * (1 - p_loan1))
+
+p_naive_bayes
+```
+Testing Model
+
+```{r}
+#This code uses the trained naive Bayes model (`model`) to make predictions on the validation dataset (`nbv`). Creating confusion matrix (`c_mat`) and computes summary statistics using `confusionMatrix` to evaluate the model's performance in predicting "PersonalLoan."
+predic <- predict(model, nbv)
+summary(predic)
+c_mat <- table(valid.df$PersonalLoan,predic) 
+c_mat
+confusionMatrix(c_mat) 
+head(predic)
+```
+```{r}
+head(valid.df)
+```
+
